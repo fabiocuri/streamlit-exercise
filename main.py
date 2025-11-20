@@ -1,5 +1,6 @@
 import streamlit as st
-from mongodb_script import client
+from postgresql_script import get_connection
+import psycopg2
 
 # Page config
 st.set_page_config(page_title="Simple Form App", page_icon="📝")
@@ -25,25 +26,27 @@ with st.form("personal_info"):
         st.write(f"Email: {email}")
         st.write(f"Age: {age}")
 
-        ## Send this information to mongodb
-
-        database = client["test_database"]
-
-        try:
-            database.create_collection("example_collection")
-        except:
-            pass
-
-        collection = database["example_collection"]
-
-        # Save a text document
-        document = {
-            "name": name,
-            "email": email
-        }
-
-        result = collection.insert_one(document)
-        print(f"Document inserted with ID: {result.inserted_id}")
+        # Send this information to PostgreSQL
+        conn = get_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO personal_info (name, email, age) VALUES (%s, %s, %s) RETURNING id",
+                    (name, email, age)
+                )
+                result = cursor.fetchone()
+                conn.commit()
+                print(f"Record inserted with ID: {result[0]}")
+                cursor.close()
+                conn.close()
+            except psycopg2.Error as e:
+                print(f"Error inserting data: {e}")
+                if conn:
+                    conn.rollback()
+                    conn.close()
+        else:
+            st.error("Failed to connect to database")
 
 st.divider()
 
@@ -61,3 +64,25 @@ with st.form("feedback"):
         st.write(f"Rating: {rating}/5")
         st.write(f"Category: {category}")
         st.write(f"Comments: {comments}")
+
+        # Send feedback to PostgreSQL
+        conn = get_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO feedback (rating, category, comments) VALUES (%s, %s, %s) RETURNING id",
+                    (rating, category, comments)
+                )
+                result = cursor.fetchone()
+                conn.commit()
+                print(f"Feedback inserted with ID: {result[0]}")
+                cursor.close()
+                conn.close()
+            except psycopg2.Error as e:
+                print(f"Error inserting feedback: {e}")
+                if conn:
+                    conn.rollback()
+                    conn.close()
+        else:
+            st.error("Failed to connect to database")
